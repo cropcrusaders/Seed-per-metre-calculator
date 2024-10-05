@@ -5,7 +5,7 @@ document.getElementById('seed-form').addEventListener('submit', function(event) 
 
   // Get input values
   const seedsPerKg = parseFloat(document.getElementById('seeds-per-kg').value);
-  const germinationRate = parseFloat(document.getElementById('germination-rate').value);
+  let germinationRate = parseFloat(document.getElementById('germination-rate').value);
   const moistureDepth = parseFloat(document.getElementById('moisture-depth').value);
   const soilType = document.getElementById('soil-type').value;
   const trashLevel = parseFloat(document.getElementById('trash-level').value);
@@ -14,7 +14,7 @@ document.getElementById('seed-form').addEventListener('submit', function(event) 
   const region = document.getElementById('region').value;
 
   // Validate inputs
-  if (germinationRate <= 0 || germinationRate > 100) {
+  if (germinationRate < 1 || germinationRate > 100) {
     alert('Please enter a valid germination rate between 1 and 100%.');
     return;
   }
@@ -24,11 +24,17 @@ document.getElementById('seed-form').addEventListener('submit', function(event) 
     return;
   }
 
+  // Adjust germination rate based on seed size
+  germinationRate = adjustGerminationRate(seedsPerKg, germinationRate, cropType);
+
   // Calculate seeds per hectare
   const seedsPerHectare = calculateSeedsPerHectare(seedsPerKg, germinationRate, moistureDepth, soilType, trashLevel, otherSeeds, cropType, region);
 
   // Display the result
-  document.getElementById('result').innerText = `Optimal Seeding Rate: ${seedsPerHectare.toLocaleString()} seeds/ha`;
+  document.getElementById('result').innerHTML = `
+    <p>Optimal Seeding Rate: ${seedsPerHectare.toLocaleString()} seeds/ha</p>
+    <p>Adjusted Germination Rate: ${germinationRate.toFixed(2)}%</p>
+  `;
 });
 
 function calculateSeedsPerHectare(seedsPerKg, germinationRate, moistureDepth, soilType, trashLevel, otherSeeds, cropType, region) {
@@ -51,10 +57,60 @@ function calculateSeedsPerHectare(seedsPerKg, germinationRate, moistureDepth, so
   return Math.round(finalSeedRate);
 }
 
+function adjustGerminationRate(seedsPerKg, germinationRate, cropType) {
+  // Standard seeds per kg for each crop
+  const standardSeedsPerKg = {
+    'wheat': 25000,
+    'barley': 22000,
+    'canola': 330000,
+    'soybean': 5000,
+    'corn': 3000,
+    'oats': 32000,
+    'chickpeas': 4000,
+    'lentils': 20000,
+    'sorghum': 40000,
+    'cotton': 8300,
+    'rice': 40000,
+    'peas': 7000,
+    'sunflower': 16000,
+    // Add standard seeds per kg for other crops
+  };
+
+  const cropStandardSeedsPerKg = standardSeedsPerKg[cropType];
+
+  if (!cropStandardSeedsPerKg) {
+    // If no standard is available, return the original germination rate
+    return germinationRate;
+  }
+
+  // Calculate percentage difference
+  const percentageDifference = ((seedsPerKg - cropStandardSeedsPerKg) / cropStandardSeedsPerKg) * 100;
+
+  // Adjust germination rate based on percentage difference
+  if (percentageDifference > 0) {
+    // Seeds are smaller
+    // Decrease germination rate by 0.5% for every 1% increase in seeds/kg, up to a maximum of 10%
+    const maxAdjustment = 10; // Maximum adjustment percentage
+    const adjustment = Math.min(percentageDifference * 0.5, maxAdjustment);
+    germinationRate -= adjustment;
+  } else if (percentageDifference < 0) {
+    // Seeds are larger
+    // Increase germination rate by 0.2% for every 1% decrease in seeds/kg, up to a maximum of 5%
+    const maxAdjustment = 5; // Maximum adjustment percentage
+    const adjustment = Math.min(Math.abs(percentageDifference) * 0.2, maxAdjustment);
+    germinationRate += adjustment;
+  }
+
+  // Ensure germination rate stays within 1% to 100%
+  germinationRate = Math.max(1, Math.min(germinationRate, 100));
+
+  return germinationRate;
+}
+
 function getBaseSeedRate(cropType, region) {
   const baseRates = {
     'wheat': {
-      'australia': 200000, // seeds per hectare
+      'australia': 200000,
       'canada': 250000,
     },
     'barley': {
@@ -66,7 +122,7 @@ function getBaseSeedRate(cropType, region) {
       'canada': 6000000,
     },
     'soybean': {
-      'australia': 0, // Not commonly grown
+      'australia': 0,
       'canada': 450000,
     },
     'corn': {
@@ -120,7 +176,7 @@ function getBaseSeedRate(cropType, region) {
 function adjustForSeedSize(seedsPerKg, cropType) {
   // Standard seeds per kg for each crop
   const standardSeedsPerKg = {
-    'wheat': 25000,     // seeds per kg
+    'wheat': 25000,
     'barley': 22000,
     'canola': 330000,
     'soybean': 5000,
@@ -170,9 +226,9 @@ function adjustForMoistureDepth(moistureDepth) {
 
 function adjustForSoilType(soilType) {
   const soilFactors = {
-    'sandy': 1.10,  // Increase seeding rate by 10%
-    'loamy': 1.0,   // No adjustment
-    'clay': 0.95,   // Decrease seeding rate by 5%
+    'sandy': 1.10,
+    'loamy': 1.0,
+    'clay': 0.95,
   };
   return soilFactors[soilType] || 1.0; // Default to no adjustment if soil type is unknown
 }
@@ -189,9 +245,9 @@ function adjustForTrashLevel(trashLevel) {
 
 function adjustForOtherSeeds(otherSeeds) {
   const weedFactors = {
-    'low': 1.0,      // No adjustment
-    'moderate': 1.05, // Increase seeding rate by 5%
-    'high': 1.10,    // Increase seeding rate by 10%
+    'low': 1.0,
+    'moderate': 1.05,
+    'high': 1.10,
   };
   return weedFactors[otherSeeds] || 1.0; // Default to no adjustment if weed pressure is unknown
 }
